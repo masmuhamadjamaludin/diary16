@@ -1,8 +1,7 @@
 from http import client
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, jsonify, request
 from pymongo import MongoClient
-import requests
-from bs4 import BeautifulSoup
+from datetime import datetime
 
 import os
 from os.path import join, dirname
@@ -21,44 +20,44 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-   return render_template('index.html')
+    return render_template('index.html')
 
-@app.route("/movie", methods=["POST"])
-def movie_post():
-    url_receive = request.form['url_give']
-    star_receive = request.form['star_give']
-    comment_receive = request.form['comment_give']
+@app.route('/diary', methods=['GET'])
+def show_diary():
+    articles = list(db.diary.find({}, {'_id': False}))
+    return jsonify({'articles': articles})
 
-    headers = {'User-Agent' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36'}
-    data = requests.get(url_receive, headers=headers)
+@app.route('/diary', methods=['POST'])
+def save_diary():
+    
+    title_receive = request.form["title_give"]
+    content_receive = request.form["content_give"]
 
-    soup = BeautifulSoup(data.text, 'html.parser')
+    today = datetime.now()
+    mytime = today.strftime('%Y-%m-%d-%H-%M-%S')
 
-    # From here on, we will write the code for extracting data from meta tags
+    file = request.files["file_give"]
+    extension = file.filename.split('.')[-1]
+    filename = f'static/post-{mytime}.{extension}'
+    file.save(filename)
 
-    og_image = soup.select_one('meta[property="og:image"]')
-    og_title = soup.select_one('meta[property="og:title"]')
-    og_description = soup.select_one('meta[property="og:description"]')
+    profile = request.files["profile_give"]
+    extension = profile.filename.split('.')[-1]
+    profilename = f'static/profile-{mytime}.{extension}'
+    profile.save(profilename)
 
-    image = og_image['content']
-    title = og_title['content']
-    desc = og_description['content']
+    time = today.strftime('%Y.%m.%d')
+
     doc = {
-        'image': image,
-        'title': title,
-        'description': desc,
-        'star': star_receive,
-        'comment': comment_receive,
-    }
-    db.movies.insert_one(doc)
-    return jsonify({'msg': 'POST request!'})
+    'file': filename,
+    'profile': profilename,
+    'title': title_receive,
+    'content': content_receive,
+    'time' : time,
+     }
+    db.diary.insert_one(doc)
 
-
-@app.route("/movie", methods=["GET"])
-def movie_get():
-    movie_list = list(db.movies.find({}, {'_id': False}))
-    return jsonify({'movies': movie_list})
-
-
+    return jsonify({'message':'data was saved!'})
+   
 if __name__ == '__main__':
     app.run('0.0.0.0', port=5000, debug=True)
